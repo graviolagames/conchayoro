@@ -1,7 +1,7 @@
 export default function Home() {
   return (
       <div>
-      <h1> Welcome to the ConchaYOro App </h1>
+      <h1> Bem vindo ao app Conchayoro </h1>
       </div>
     )
   }
