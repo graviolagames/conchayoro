@@ -1,7 +1,8 @@
 name: conchayoro-pipeline
 on:
   push:
-    branches: [main]
+    branches:
+      - '*'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,10 +30,32 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       AWS_EC2_METADATA_DISABLED: true
-      BUCKET_S3: ${{ vars.BUCKET_S3 }}
+      BUCKET_S3_PROD: ${{ vars.BUCKET_S3_PROD }}
+      BUCKET_S3_HOMOLOG: ${{ vars.BUCKET_S3_HOMOLOG }}
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: build
           path: frontend/.next/server/app
-      - run: aws s3 cp frontend/.next/server/app s3://$BUCKET_S3 --recursive --acl public-read
+      - name: Check Branch
+      id: check_branch
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "::set-output name=branch_name::main"
+        elif [[ "${{ github.ref }}" == "refs/heads/homolog" ]]; then
+          echo "::set-output name=branch_name::homolog"
+        else
+          echo "::set-output name=branch_name::unknown"
+        fi
+      - name: Check Commit Message
+        id: check_commit
+        run: echo "::set-output name=match::$(echo ${{ github.event.head_commit.message }} | grep -oE '\[(homolog|prod)\]')"
+      
+      - name: Deploy to homolog
+        if:  steps.check_branch.outputs.branch_name=='prod' && steps.check_commit.outputs.match == '[prod]'
+        run: aws s3 cp frontend/.next/server/app s3://$BUCKET_S3_PROD --recursive --acl public-read
+
+      - name: Deploy to prod
+        if: steps.check_branch.outputs.branch_name== 'homolog' && steps.check_commit.outputs.match == '[homolog]'
+        run: aws s3 cp frontend/.next/server/app s3://$BUCKET_S3_HOMOLOG --recursive --acl public-read
+      
