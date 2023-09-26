@@ -52,7 +52,7 @@ jobs:
         run: echo "::set-output name=match::$(echo ${{ github.event.head_commit.message }} | grep -oE '\[(homolog|prod)\]')"
       
       - name: Deploy to prod
-        if:  steps.check_branch.outputs.branch_name=='prod' && steps.check_commit.outputs.match == '[prod]'
+        if:  steps.check_branch.outputs.branch_name=='main' && steps.check_commit.outputs.match == '[prod]'
         run: aws s3 cp frontend/.next/server/app s3://$BUCKET_S3_PROD --recursive --acl public-read
 
       - name: Deploy to homolog
