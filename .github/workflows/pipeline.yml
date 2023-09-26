@@ -38,15 +38,15 @@ jobs:
           name: build
           path: frontend/.next/server/app
       - name: Check Branch
-      id: check_branch
-      run: |
-        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "::set-output name=branch_name::main"
-        elif [[ "${{ github.ref }}" == "refs/heads/homolog" ]]; then
-          echo "::set-output name=branch_name::homolog"
-        else
-          echo "::set-output name=branch_name::unknown"
-        fi
+        id: check_branch
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "::set-output name=branch_name::main"
+          elif [[ "${{ github.ref }}" == "refs/heads/homolog" ]]; then
+            echo "::set-output name=branch_name::homolog"
+          else
+            echo "::set-output name=branch_name::unknown"
+          fi
       - name: Check Commit Message
         id: check_commit
         run: echo "::set-output name=match::$(echo ${{ github.event.head_commit.message }} | grep -oE '\[(homolog|prod)\]')"
