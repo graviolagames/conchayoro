@@ -1,61 +1,35 @@
-name: conchayoro-pipeline
+name: conchayoro-pipeline-ecr-ebs
 on:
+  # workflow_dispatch:
   push:
-    branches:
-      - '*'
+    branches: [ main ]
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+  MODULE_NAME: ${{ vars.MODULE_NAME }}
+  TAG: latest
+  STACK_NAME: "64bit Amazon Linux 2 v3.5.7 running Docker"
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      MODULE_FULLNAME: ${{ vars.PROJECT_NAME }}/${{ vars.MODULE_NAME }}
+      REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
     steps:
       - uses: actions/checkout@v3
-      - name: setup node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: '16'
           cache: 'npm'
-      - name: frontend install
-        run: npm --prefix frontend install
-      - name: frontend build
-        run: npm --prefix frontend run build
-      - name: upload frontend build
-        uses: actions/upload-artifact@v3
-        with:
-          name: build
-          path: frontend/.next/server/app
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-      AWS_EC2_METADATA_DISABLED: true
-      BUCKET_S3_PROD: ${{ vars.BUCKET_S3_PROD }}
-      BUCKET_S3_HOMOLOG: ${{ vars.BUCKET_S3_HOMOLOG }}
-    steps:
-      - uses: actions/download-artifact@v3
-        with:
-          name: build
-          path: frontend/.next/server/app
-      - name: Check Branch
-        id: check_branch
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "::set-output name=branch_name::main"
-          elif [[ "${{ github.ref }}" == "refs/heads/homolog" ]]; then
-            echo "::set-output name=branch_name::homolog"
-          else
-            echo "::set-output name=branch_name::unknown"
-          fi
-      - name: Check Commit Message
-        id: check_commit
-        run: echo "::set-output name=match::$(echo ${{ github.event.head_commit.message }} | grep -oE '\[(homolog|prod)\]')"
-      
-      - name: Deploy to prod
-        if:  steps.check_branch.outputs.branch_name=='main' && steps.check_commit.outputs.match == '[prod]'
-        run: aws s3 cp frontend/.next/server/app s3://$BUCKET_S3_PROD --recursive --acl public-read
-
-      - name: Deploy to homolog
-        if: steps.check_branch.outputs.branch_name== 'homolog' && steps.check_commit.outputs.match == '[homolog]'
-        run: aws s3 cp frontend/.next/server/app s3://$BUCKET_S3_HOMOLOG --recursive --acl public-read
-      
+      - run: docker build -t $MODULE_FULLNAME $MODULE_NAME
+      - run: |
+          docker tag $MODULE_FULLNAME:$TAG \
+            $REGISTRY_URL/$MODULE_FULLNAME:$TAG
+      - run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin $REGISTRY_URL
+      - run: docker push $REGISTRY_URL/$MODULE_FULLNAME:$TAG
